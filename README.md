@@ -1,1 +1,1 @@
-# conjugate-transpose
+# conjugate-gradient
