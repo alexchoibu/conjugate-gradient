@@ -8,7 +8,7 @@ EXE_DIR := exe
 
 # Flags
 CFLAGS := -O1 -Wall
-NVCCFLAGS := -arch compute_60 -code sm_60 -O1 -Xcompiler -Wall
+NVCCFLAGS := -arch compute_60 -code sm_60 -O1 -Xcompiler -Wall -lm
 
 # Find all source files in src/
 C_SRCS := $(wildcard $(SRC_DIR)/*.c)
