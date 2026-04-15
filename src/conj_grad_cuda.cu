@@ -74,7 +74,7 @@ data_t dot_product(int n, data_t *a, data_t *b) {
 }
 
 // Conjugate Gradient CPU reference
-void conj_grad_cpu(int n, data_t A[n][n], data_t *b, data_t *x, data_t tol) {
+void conj_grad_cpu(int n, data_t* A, data_t* b, data_t* x) {
     data_t r[n], p[n], Ap[n];
     data_t rsold, rsnew, alpha, beta;
 
@@ -107,7 +107,7 @@ void conj_grad_cpu(int n, data_t A[n][n], data_t *b, data_t *x, data_t tol) {
         }
 
         rsnew = dot_product(n, r, r);
-        if (sqrt(rsnew) < tol) break; // Check convergence
+        if (sqrt(rsnew) < TOL) break; // Check convergence
 
         // beta = rsnew / rsold
         beta = rsnew / rsold;
