@@ -313,7 +313,7 @@ int main()
         conj_grad_cpu(width, h_A, h_b, h_x);
         clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &time_stop);
         double timestamp = interval(time_start, time_stop);
-        printf("CPU time: %f ms\n", timestamped * 1000.0);
+        printf("CPU time: %f ms\n", timestamp * 1000.0);
 
         // GPU computation
         conj_grad_gpu(width, h_A, h_b, h_x);
