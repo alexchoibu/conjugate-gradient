@@ -247,7 +247,7 @@ void conj_grad_gpu(int n, data_t *h_A, data_t *h_b, data_t *h_x)
     // Calculate elapsed time
     cudaEventElapsedTime(&elapsed, start, stop);
 
-    printf("End-to-end time: %f ms\n", elapsed);
+    printf("GPU time: %f ms\n", elapsed);
     
     // Free device memory
     CUDA_SAFE_CALL(cudaFree(Ad));
