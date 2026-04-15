@@ -267,9 +267,9 @@ int main()
 
     struct timespec time_start, time_stop;
 
-    int sizes[2] = {1024, 2048};
+    int sizes[6] = {256, 512, 1024, 2048, 4096, 8192};
 
-    for (int s = 0; s < 2; s++) {
+    for (int s = 0; s < 6; s++) {
         
         int width = sizes[s];
         size_t sizeMat = width * width * sizeof(data_t);
