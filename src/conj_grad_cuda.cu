@@ -20,11 +20,12 @@ inline void gpuAssert(cudaError_t code, char *file, int line, bool abort=true)
 }
 
 #define TOL 1e-6
+typedef double data_t;
 
 /* ================= GPU KERNELS ================= */
 
 // Dot product: result = <a, b>
-__global__ void dot_product_kernel(int n, double* a, double* b, double* result)
+__global__ void dot_product_kernel(int n, data_t* a, data_t* b, data_t* result)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < n) {
@@ -33,7 +34,7 @@ __global__ void dot_product_kernel(int n, double* a, double* b, double* result)
 }
 
 // Vector copy: y = x
-__global__ void vec_copy_kernel(int n, double* x, double* y)
+__global__ void vec_copy_kernel(int n, data_t* x, data_t* y)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < n) {
@@ -42,11 +43,11 @@ __global__ void vec_copy_kernel(int n, double* x, double* y)
 }
 
 // Matrix-vector multiplication: result = A * x
-__global__ void mat_vec_mul_kernel(int n, double* A, double* x, double* result)
+__global__ void mat_vec_mul_kernel(int n, data_t* A, data_t* x, data_t* result)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < n) {
-        double sum = 0.0;
+        data_t sum = 0.0;
         for (int j = 0; j < n; j++) {
             sum += A[i*n + j] * x[j];
         }
@@ -55,7 +56,7 @@ __global__ void mat_vec_mul_kernel(int n, double* A, double* x, double* result)
 }
 
 // Vector multiply and add: z = a * x + y
-__global__ void vec_mul_add_kernel(int n, double a, double* x, double* y, double* z)
+__global__ void vec_mul_add_kernel(int n, data_t a, data_t* x, data_t* y, data_t* z)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < n) {
@@ -66,16 +67,16 @@ __global__ void vec_mul_add_kernel(int n, double a, double* x, double* y, double
 /* ================= CPU Reference ================= */
 
 // Helper to compute dot product of two vectors
-double dot_product(int n, double *a, double *b) {
-    double sum = 0.0;
+data_t dot_product(int n, data_t *a, data_t *b) {
+    data_t sum = 0.0;
     for (int i = 0; i < n; i++) sum += a[i] * b[i];
     return sum;
 }
 
 // Conjugate Gradient CPU reference
-void conj_grad_cpu(int n, double* A, double* b, double* x) {
-    double r[n], p[n], Ap[n];
-    double rsold, rsnew, alpha, beta;
+void conj_grad_cpu(int n, data_t* A, data_t* b, data_t* x) {
+    data_t r[n], p[n], Ap[n];
+    data_t rsold, rsnew, alpha, beta;
 
     // Initial r = b - Ax (assuming initial x is zeros)
     for (int i = 0; i < n; i++) {
@@ -93,7 +94,7 @@ void conj_grad_cpu(int n, double* A, double* b, double* x) {
         // Compute Ap = A * p
         for (int row = 0; row < n; row++) {
             Ap[row] = 0;
-            for (int col = 0; col < n; col++) Ap[row] += A[row][col] * p[col];
+            for (int col = 0; col < n; col++) Ap[row] += A[row * n + col] * p[col];
         }
 
         // alpha = rsold / (p' * A * p)
@@ -121,7 +122,7 @@ void conj_grad_cpu(int n, double* A, double* b, double* x) {
 /* ================= CG WRAPPER ================= */
 
 // Conjugate gradient GPU wrapper function
-void conj_grad_gpu(int n, double *h_A, double *h_b, double *h_x)
+void conj_grad_gpu(int n, data_t *h_A, data_t *h_b, data_t *h_x)
 {
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
@@ -133,22 +134,22 @@ void conj_grad_gpu(int n, double *h_A, double *h_b, double *h_x)
     int gridSize = (n + blockSize - 1) / blockSize;
 
     // Allocate device memory
-    double *Ad, *bd, *xd, *rd, *pd, *Apd, *temp_result;
-    CUDA_SAFE_CALL(cudaMalloc((void**)&Ad, n * n * sizeof(double)));
-    CUDA_SAFE_CALL(cudaMalloc((void**)&bd, n * sizeof(double)));
-    CUDA_SAFE_CALL(cudaMalloc((void**)&xd, n * sizeof(double)));
-    CUDA_SAFE_CALL(cudaMalloc((void**)&rd, n * sizeof(double)));
-    CUDA_SAFE_CALL(cudaMalloc((void**)&pd, n * sizeof(double)));
-    CUDA_SAFE_CALL(cudaMalloc((void**)&Apd, n * sizeof(double)));
-    CUDA_SAFE_CALL(cudaMalloc((void**)&temp_result, sizeof(double)));
+    data_t *Ad, *bd, *xd, *rd, *pd, *Apd, *temp_result;
+    CUDA_SAFE_CALL(cudaMalloc((void**)&Ad, n * n * sizeof(data_t)));
+    CUDA_SAFE_CALL(cudaMalloc((void**)&bd, n * sizeof(data_t)));
+    CUDA_SAFE_CALL(cudaMalloc((void**)&xd, n * sizeof(data_t)));
+    CUDA_SAFE_CALL(cudaMalloc((void**)&rd, n * sizeof(data_t)));
+    CUDA_SAFE_CALL(cudaMalloc((void**)&pd, n * sizeof(data_t)));
+    CUDA_SAFE_CALL(cudaMalloc((void**)&Apd, n * sizeof(data_t)));
+    CUDA_SAFE_CALL(cudaMalloc((void**)&temp_result, sizeof(data_t)));
 
     // Record start event (end-to-end)
     cudaEventRecord(start);
 
     // Copy data to device
-    CUDA_SAFE_CALL(cudaMemcpy(Ad, h_A, n * n * sizeof(double), cudaMemcpyHostToDevice));
-    CUDA_SAFE_CALL(cudaMemcpy(bd, h_b, n * sizeof(double), cudaMemcpyHostToDevice));
-    CUDA_SAFE_CALL(cudaMemcpy(xd, h_x, n * sizeof(double), cudaMemcpyHostToDevice));
+    CUDA_SAFE_CALL(cudaMemcpy(Ad, h_A, n * n * sizeof(data_t), cudaMemcpyHostToDevice));
+    CUDA_SAFE_CALL(cudaMemcpy(bd, h_b, n * sizeof(data_t), cudaMemcpyHostToDevice));
+    CUDA_SAFE_CALL(cudaMemcpy(xd, h_x, n * sizeof(data_t), cudaMemcpyHostToDevice));
     
     // Initial r = b - Ax (assuming initial x is zeros)
     // r = b
@@ -160,12 +161,12 @@ void conj_grad_gpu(int n, double *h_A, double *h_b, double *h_x)
     CUDA_SAFE_CALL(cudaDeviceSynchronize());
     
     // rsold = r · r
-    CUDA_SAFE_CALL(cudaMemset(temp_result, 0, sizeof(double)));
+    CUDA_SAFE_CALL(cudaMemset(temp_result, 0, sizeof(data_t)));
     dot_product_kernel<<<gridSize, blockSize>>>(n, rd, rd, temp_result);
     CUDA_SAFE_CALL(cudaDeviceSynchronize());
     
-    double rsold;
-    CUDA_SAFE_CALL(cudaMemcpy(&rsold, temp_result, sizeof(double), cudaMemcpyDeviceToHost));
+    data_t rsold;
+    CUDA_SAFE_CALL(cudaMemcpy(&rsold, temp_result, sizeof(data_t), cudaMemcpyDeviceToHost));
     
     // CG iterations
     for (int iter = 0; iter < n; iter++) {
@@ -174,14 +175,14 @@ void conj_grad_gpu(int n, double *h_A, double *h_b, double *h_x)
         CUDA_SAFE_CALL(cudaDeviceSynchronize());
         
         // alpha = rsold / (p · Ap)
-        CUDA_SAFE_CALL(cudaMemset(temp_result, 0, sizeof(double)));
+        CUDA_SAFE_CALL(cudaMemset(temp_result, 0, sizeof(data_t)));
         dot_product_kernel<<<gridSize, blockSize>>>(n, pd, Apd, temp_result);
         CUDA_SAFE_CALL(cudaDeviceSynchronize());
         
-        double pAp;
-        CUDA_SAFE_CALL(cudaMemcpy(&pAp, temp_result, sizeof(double), cudaMemcpyDeviceToHost));
+        data_t pAp;
+        CUDA_SAFE_CALL(cudaMemcpy(&pAp, temp_result, sizeof(data_t), cudaMemcpyDeviceToHost));
         
-        double alpha = rsold / pAp;
+        data_t alpha = rsold / pAp;
         
         // x = x + alpha * p
         vec_mul_add_kernel<<<gridSize, blockSize>>>(n, alpha, pd, xd, xd);
@@ -192,18 +193,18 @@ void conj_grad_gpu(int n, double *h_A, double *h_b, double *h_x)
         CUDA_SAFE_CALL(cudaDeviceSynchronize());
         
         // rsnew = r · r
-        CUDA_SAFE_CALL(cudaMemset(temp_result, 0, sizeof(double)));
+        CUDA_SAFE_CALL(cudaMemset(temp_result, 0, sizeof(data_t)));
         dot_product_kernel<<<gridSize, blockSize>>>(n, rd, rd, temp_result);
         CUDA_SAFE_CALL(cudaDeviceSynchronize());
         
-        double rsnew;
-        CUDA_SAFE_CALL(cudaMemcpy(&rsnew, temp_result, sizeof(double), cudaMemcpyDeviceToHost));
+        data_t rsnew;
+        CUDA_SAFE_CALL(cudaMemcpy(&rsnew, temp_result, sizeof(data_t), cudaMemcpyDeviceToHost));
         
         // Check convergence
         if (sqrt(rsnew) < TOL) break;
         
         // beta = rsnew / rsold
-        double beta = rsnew / rsold;
+        data_t beta = rsnew / rsold;
         
         // p = r + beta * p
         vec_mul_add_kernel<<<gridSize, blockSize>>>(n, beta, pd, rd, pd);
@@ -213,7 +214,7 @@ void conj_grad_gpu(int n, double *h_A, double *h_b, double *h_x)
     }
 
     // Copy result back to host
-    CUDA_SAFE_CALL(cudaMemcpy(h_x, xd, n * sizeof(double), cudaMemcpyDeviceToHost));
+    CUDA_SAFE_CALL(cudaMemcpy(h_x, xd, n * sizeof(data_t), cudaMemcpyDeviceToHost));
 
     // Record stop event and synchronize
     cudaEventRecord(stop);
@@ -245,26 +246,26 @@ int main()
     for (int s = 0; s < 2; s++) {
         
         int width = sizes[s];
-        size_t sizeMat = width * width * sizeof(double);
-        size_t sizeVec = width * sizeof(double);
+        size_t sizeMat = width * width * sizeof(data_t);
+        size_t sizeVec = width * sizeof(data_t);
 
         printf("\n===== Testing %dx%d =====\n", width, width);
 
         // Allocate host memory
-        double *h_A = (double*) malloc(sizeMat);
-        double *h_b = (double*) malloc(sizeVec);
-        double *h_x = (double*) malloc(sizeVec);
-        double *h_gold = (double*) malloc(sizeVec);
+        data_t *h_A = (data_t*) malloc(sizeMat);
+        data_t *h_b = (data_t*) malloc(sizeVec);
+        data_t *h_x = (data_t*) malloc(sizeVec);
+        data_t *h_gold = (data_t*) malloc(sizeVec);
 
         // Initialize host matrix (symmetric, positive-definite, real)
         srand(1234);
         for (int i = 0; i < width*width; i++) {
-            h_A[i] = (double)rand()/RAND_MAX * 10.0;
+            h_A[i] = (data_t)rand()/RAND_MAX * 10.0;
         }
         // Symmetrize in-place (upper triangle only)
         for (int i = 0; i < width; i++) {
             for (int j = i + 1; j < width; j++) {
-                double sym = 0.5 * (h_A[i * width + j] + h_A[j * width + i]);
+                data_t sym = 0.5 * (h_A[i * width + j] + h_A[j * width + i]);
                 h_A[i * width + j] = sym;
                 h_A[j * width + i] = sym;
             }
@@ -276,7 +277,7 @@ int main()
 
         // Initialize host vectors
         for (int i = 0; i < width; i++) {
-            h_b[i] = (double)rand()/RAND_MAX * 10.0;
+            h_b[i] = (data_t)rand()/RAND_MAX * 10.0;
             h_x[i] = 0.0; // Initial guess
             h_gold[i] = 0.0; // To store CPU result
         }
@@ -288,9 +289,9 @@ int main()
         conj_grad_gpu(width, h_A, h_b, h_x);
 
         // Verify correctness
-        double max_err = 0.0;
+        data_t max_err = 0.0;
         for (int i = 0; i < width; i++) {
-            double diff = fabs(h_x[i] - h_gold[i]);
+            data_t diff = fabs(h_x[i] - h_gold[i]);
             if (diff > max_err) max_err = diff;
         }
         printf("Max error: %.10f\n", max_err);
