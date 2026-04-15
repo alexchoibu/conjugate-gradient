@@ -15,9 +15,11 @@ void conjugate_gradient(int n, double A[n][n], double *b, double *x, double tol)
 
     // Initial r = b - Ax (assuming initial x is zeros)
     for (int i = 0; i < n; i++) {
-        double Ax0 = 0;
-        for (int j = 0; j < n; j++) Ax0 += A[i][j] * x[j];
-        r[i] = b[i] - Ax0;
+        // Need to use following if x != 0:
+        // double Ax0 = 0;
+        // for (int j = 0; j < n; j++) Ax0 += A[i][j] * x[j];
+        // r[i] = b[i] - Ax0;
+        r[i] = b[i];
         p[i] = r[i]; // Initial search direction is the residual
     }
 
